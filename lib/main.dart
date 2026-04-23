@@ -1,5 +1,8 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+// lib/main.dart
+// - Entry point: registerApiService() + runApp()
+// - AuthGate: Check login status -> HomeScreen or Onboarding
+// - Routes setup
+
 import 'package:flutter/material.dart';
 
 import 'service/api_service.dart';
@@ -13,6 +16,7 @@ import 'screens/tabs/home_screen.dart';
 // Home tab
 import 'screens/tabs/home_tab/trip_creation_city_screen.dart';
 import 'screens/tabs/home_tab/trip_creation_custom_screen.dart';
+import 'screens/tabs/home_tab/qr_scan_screen.dart';
 
 // Room tab
 import 'screens/tabs/room_tab/room_screen.dart';
@@ -27,10 +31,14 @@ import 'screens/register_screen.dart';
 import 'screens/invite_friend_screen.dart';
 
 String _defaultBaseUrl() {
-  const port = 3000;
-  if (kIsWeb) return 'http://localhost:$port';
-  if (Platform.isAndroid) return 'http://10.0.2.2:$port';
-  return 'http://localhost:$port';
+  // Production URL (Render)
+  return 'https://travel-match-backend.onrender.com';
+
+  // Local Development (Keep for reference)
+  // const port = 3000;
+  // if (kIsWeb) return 'http://localhost:$port';
+  // if (Platform.isAndroid) return 'http://10.0.2.2:$port';
+  // return 'http://localhost:$port';
 }
 
 final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
@@ -76,27 +84,46 @@ class Swipetrip extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF007AFF),
-          secondary: Color(0xFF5AA9FF),
+          primary: Color(0xFF00B4D8), // Tropical Teal
+          secondary: Color(0xFFFF7A00), // Sunset Orange
           surface: Colors.white,
           background: Colors.white,
           onPrimary: Colors.white,
+          onSecondary: Colors.white,
           onSurface: Colors.black,
         ),
         scaffoldBackgroundColor: Colors.white,
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
-          selectedItemColor: Color(0xFF007AFF),
+          selectedItemColor: Color(0xFF00B4D8),
           unselectedItemColor: Colors.grey,
           showSelectedLabels: true,
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
-          elevation: 0,
+          elevation: 10,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          elevation: 0,
+          elevation: 0.5,
+          shadowColor: Colors.black12,
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF00B4D8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF00B4D8),
+            side: const BorderSide(color: Color(0xFF00B4D8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
         ),
       ),
       home: AuthGate(api: api),
@@ -118,6 +145,7 @@ class Swipetrip extends StatelessWidget {
         '/login': (_) => LoginScreen(api: api),
         '/register': (_) => RegisterScreen(api: api),
         '/invite': (_) => InviteFriendScreen(api: api),
+        '/qr_scan': (_) => const QrScanScreen(),
 
         '/trip_create_city': (_) => CityTripCreationScreen(
               api: api,

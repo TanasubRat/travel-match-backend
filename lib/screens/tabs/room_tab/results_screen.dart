@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../service/api_service.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -156,8 +157,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ? (_group!['members'] as List).length
               : 0;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             clipBehavior: Clip.antiAlias,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,38 +178,74 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 if (image.isNotEmpty)
                   Stack(
                     children: [
-                      Image.network(
-                        _api.getProxyImageUrl(image),
-                        height: 200,
+                      CachedNetworkImage(
+                        imageUrl: _api.getProxyImageUrl(image),
+                        height: 220,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 200,
+                        placeholder: (context, url) => Container(
+                          height: 220,
+                          color: Colors.grey.shade200,
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          height: 220,
                           color: Colors.grey.shade300,
                           child: const Center(
                             child: Icon(Icons.image_not_supported),
                           ),
                         ),
                       ),
+                      // Gradient overlay at bottom of image
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 80,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.6),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                       // Match badge
                       Positioned(
-                        top: 8,
-                        right: 8,
+                        top: 16,
+                        right: 16,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                            horizontal: 16,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              colors: [
+                                theme.colorScheme.secondary,
+                                const Color(0xFFFF9A44),
+                              ]
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.secondary.withOpacity(0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                Icons.check_circle,
-                                size: 16,
+                                Icons.local_fire_department_rounded,
+                                size: 18,
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 4),
@@ -206,7 +254,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 13,
                                 ),
                               ),
                             ],
@@ -217,66 +265,92 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ),
                 // Details
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         address,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.grey,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                          height: 1.4,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       // Rating and Price
                       Row(
                         children: [
-                          Icon(
-                            Icons.star,
-                            size: 16,
-                            color: Colors.amber,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating.toString(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          if (price.isNotEmpty)
-                            Row(
+                            child: Row(
                               children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 18,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 4),
                                 Text(
-                                  price,
+                                  rating.toString(),
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber,
                                   ),
                                 ),
                               ],
                             ),
+                          ),
+                          const SizedBox(width: 12),
+                          if (price.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                price,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      // Action Button
-                      if (_isHost && placeId != null)
+                      if (_isHost && placeId != null) ...[
+                        const SizedBox(height: 24),
+                        // Action Button
                         SizedBox(
                           width: double.infinity,
+                          height: 56,
                           child: FilledButton.icon(
                             onPressed: () => _confirm(placeId),
-                            icon: const Icon(Icons.check_circle),
-                            label: const Text('Set as Final Destination'),
+                            icon: const Icon(Icons.check_circle_rounded),
+                            label: const Text(
+                              'Set as Final Destination',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),

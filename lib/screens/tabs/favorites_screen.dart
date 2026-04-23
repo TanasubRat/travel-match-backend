@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../service/api_service.dart';
 import '../../widgets/app_tab_scaffold.dart';
 
@@ -19,7 +20,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadAllPlaces();
   }
 
   @override
@@ -35,43 +35,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     }
   }
 
-  Future<void> _loadAllPlaces() async {
-    setState(() => _loading = true);
-    try {
-      // Load places from multiple cities to get all favorited ones
-      final cities = ['Bangkok', 'Chiang Mai', 'Phuket', 'Salaya'];
-      final allPlaces = <dynamic>[];
-
-      for (final city in cities) {
-        try {
-          final places = await _api.getPlaces(location: city);
-          allPlaces.addAll(places);
-        } catch (_) {
-          // Skip if city has no places
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _allPlaces = allPlaces;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-  }
-
   List<Map<String, dynamic>> _getFavorites() {
-    return _allPlaces
-        .whereType<Map>()
-        .where((p) {
-          final placeId =
-              (p['_id'] ?? p['id'] ?? p['placeId'] ?? '').toString();
-          return _api.favorites.contains(placeId);
-        })
-        .cast<Map<String, dynamic>>()
-        .toList();
+    return _api.favorites.values.cast<Map<String, dynamic>>().toList();
   }
 
   String _getPlaceId(Map place) {
@@ -89,9 +54,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
             'Favorite${favorites.isEmpty ? '' : ' (${favorites.length})'}'),
         automaticallyImplyLeading: false,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : favorites.isEmpty
+      body: favorites.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -123,9 +86,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                     ),
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _loadAllPlaces,
-                  child: ListView.builder(
+              : ListView.builder(
                     itemCount: favorites.length,
                     itemBuilder: (ctx, idx) {
                       final place = favorites[idx];
@@ -144,11 +105,13 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                           leading: image != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    _api.getProxyImageUrl(image),
+                                  child: CachedNetworkImage(
+                                    imageUrl: _api.getProxyImageUrl(image),
                                     width: 60,
                                     height: 60,
                                     fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(width: 60, height: 60, color: Colors.grey.shade200),
+                                    errorWidget: (context, url, err) => Container(width: 60, height: 60, color: Colors.grey.shade300, child: const Icon(Icons.broken_image, size: 20)),
                                   ),
                                 )
                               : const Icon(Icons.place),
@@ -165,16 +128,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                                   style: const TextStyle(fontSize: 12)),
                             ],
                           ),
-                          onTap: () {
-                            setState(() {
-                              _api.favorites.remove(_getPlaceId(place));
-                            });
+                          onTap: () async {
+                            await _api.toggleFavorite(place);
+                            setState(() {});
                           },
                         ),
                       );
                     },
                   ),
-                ),
     );
   }
 }

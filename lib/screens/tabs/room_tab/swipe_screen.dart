@@ -1,18 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:url_launcher/url_launcher.dart'; // Import for opening links
 import '../../../service/api_service.dart';
 
-// Static cache to preserve swipe position across navigation
-class _SwipeCache {
-  static final Map<String, int> _indexCache = {};
-
-  static int getIndex(String groupId) => _indexCache[groupId] ?? 0;
-  static void setIndex(String groupId, int index) =>
-      _indexCache[groupId] = index;
-  static void clear(String groupId) => _indexCache.remove(groupId);
-}
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SwipeScreen extends StatefulWidget {
   final String groupId;
@@ -34,13 +27,56 @@ class _SwipeScreenState extends State<SwipeScreen> {
   double _drag = 0;
   int _matchCount = 0;
   bool _isFirstLoad = true;
+  Timer? _pollingTimer;
+  final Set<String> _knownMatchIds = {};
 
   @override
   void initState() {
     super.initState();
-    // Restore swipe position from cache if available
-    _index = _SwipeCache.getIndex(widget.groupId);
     _load();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _pollMatches();
+    });
+  }
+
+  Future<void> _pollMatches() async {
+    if (!mounted) return;
+    try {
+      final matchData = await _api.getGroupMatch(widget.groupId);
+      final matches = (matchData['matches'] as List?) ?? [];
+      
+      if (!mounted) return;
+      
+      bool hasNewMatch = false;
+      Map? firstNewMatch;
+      for (var m in matches) {
+        final pid = (m['placeId'] ?? m['_id'])?.toString();
+        if (pid != null && !_knownMatchIds.contains(pid)) {
+          _knownMatchIds.add(pid);
+          if (!hasNewMatch) {
+            firstNewMatch = m;
+          }
+          hasNewMatch = true;
+        }
+      }
+
+      if (firstNewMatch != null) {
+        // Show popup for the first new match to prevent dialog spam
+        _showMatchDialog(firstNewMatch);
+      }
+      
+      if (hasNewMatch || _matchCount != matches.length) {
+        setState(() {
+          _matchCount = matches.length;
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   @override
@@ -57,7 +93,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
       _error = null;
       if (_isFirstLoad) {
         _places = [];
-        _index = _SwipeCache.getIndex(widget.groupId);
+        _index = 0; // Fresh list always unswiped now due to backend filter
       }
       _matchCount = 0;
     });
@@ -70,6 +106,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
         if (!mounted) return;
         setState(() {
           _matchCount = matches.length;
+          // Populate known matches so we don't trigger dialogs for past matches!
+          for (var m in matches) {
+             final pid = (m['placeId'] ?? m['_id'])?.toString();
+             if (pid != null) _knownMatchIds.add(pid);
+          }
         });
       } catch (_) {
         // ถ้าโหลด matches ไม่ได้ก็ค่อยไป
@@ -130,22 +171,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
         // ถ้า 404 หรือ error อื่นใน endpoint นี้ ค่อย fallback
       }
 
-      // 3) ถ้า endpoint เฉพาะกลุ่มไม่มี/ว่าง → fallback ไป /api/places
-      if (places.isEmpty) {
-        final loc = city.isNotEmpty ? city : 'Bangkok';
-        try {
-          places = await _api.getPlaces(
-            location: loc,
-            types: categories,
-            minRating: minRating,
-            priceLevel: priceLevel,
-            maxDistanceKm: maxDistanceKm,
-            openNow: openNow,
-          );
-        } catch (_) {
-          // ถ้า /api/places ก็พัง ค่อยไปแสดง error ด้านล่าง
-        }
-      }
+      // Removed fallback to /api/places because it bypasses the backend $nin swipe filter,
+      // causing the user to see cards they've already swiped infinitely!
 
       if (!mounted) return;
 
@@ -153,16 +180,14 @@ class _SwipeScreenState extends State<SwipeScreen> {
         setState(() {
           _places = [];
           _loading = false;
-          _error =
-              'No candidate places available for this group.\nPlease check backend / seed data.';
+          _error = 'No new places left to discover for this group!\nTry relaxing your group filters or switching cities.';
           _isFirstLoad = false;
         });
       } else {
         setState(() {
-          // Only set index to 0 if this is the first load
           if (_isFirstLoad) {
             _places = places;
-            _index = 0;
+            // The _index is already set to the cached value at the top of _load()
           } else {
             // If returning to screen, keep current index but update places if needed
             if (_places.isEmpty) {
@@ -205,17 +230,34 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
     setState(() => _sending = true);
     try {
-      await _api.saveSwipe(
+      final resp = await _api.saveSwipe(
         groupId: widget.groupId,
         placeId: placeId,
         liked: liked,
       );
+
+      final isMatch = resp['isMatch'] == true;
+      
+      // Safely parse place to avoid TypeError if the backend returns an ObjectId string
+      final matchPlace = (resp['place'] is Map) ? resp['place'] as Map : null;
+
       if (!mounted) return;
+
+      if (isMatch && matchPlace != null) {
+        final pid = (matchPlace['_id'] ?? matchPlace['id'] ?? matchPlace['placeId'])?.toString();
+        if (pid != null) {
+          _knownMatchIds.add(pid);
+        }
+        setState(() {
+          _matchCount++;
+        });
+        _showMatchDialog(matchPlace);
+      }
+
       setState(() {
         _index++;
         _drag = 0;
-        // Save the current index to cache
-        _SwipeCache.setIndex(widget.groupId, _index);
+
       });
     } catch (e) {
       if (!mounted) return;
@@ -225,6 +267,73 @@ class _SwipeScreenState extends State<SwipeScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _showMatchDialog(Map place) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.local_fire_department_rounded, color: Theme.of(context).colorScheme.secondary, size: 28),
+              const SizedBox(width: 8),
+              const Text("It's a Match!", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Everyone agreed on ${place['name'] ?? 'this place'}!",
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              if (place['image'] != null && place['image'].toString().isNotEmpty)
+                 ClipRRect(
+                   borderRadius: BorderRadius.circular(12),
+                   child: CachedNetworkImage(
+                     imageUrl: _api.getProxyImageUrl(place['image']), 
+                     height: 120, 
+                     width: 280, 
+                     fit: BoxFit.cover,
+                     placeholder: (context, url) => Container(
+                       height: 120, 
+                       width: 280, 
+                       color: Colors.grey[200]
+                     ),
+                     errorWidget: (context, url, error) => Container(
+                       height: 120, 
+                       width: 280, 
+                       color: Colors.grey[300],
+                       child: const Icon(Icons.image_not_supported)
+                     ),
+                   ),
+                 ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+              },
+              child: const Text("Keep Swiping", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pushNamed(
+                  '/results',
+                  arguments: {'groupId': widget.groupId},
+                );
+              },
+              child: const Text("View Results", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      }
+    );
   }
 
   void _onDragUpdate(DragUpdateDetails d) {
@@ -269,7 +378,10 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
     if (_index >= _places.length) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Swipe Places')),
+        appBar: AppBar(
+          title: const Text('Swipe Places'),
+          actions: _buildAppBarActions(),
+        ),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -301,45 +413,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Swipe Places'),
-        actions: [
-          Stack(
-            children: [
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pushNamed(
-                    '/results',
-                    arguments: {'groupId': widget.groupId},
-                  );
-                },
-                icon: const Icon(Icons.emoji_events),
-                label: const Text('See matches'),
-              ),
-              if (_matchCount > 0)
-                Positioned(
-                  top: -8,
-                  right: -8,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        _matchCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
+        actions: _buildAppBarActions(),
       ),
       body: Column(
         children: [
@@ -351,7 +425,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
                 onHorizontalDragUpdate: _sending ? null : _onDragUpdate,
                 onHorizontalDragEnd: _sending ? null : _onDragEnd,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                  duration: _drag == 0 ? const Duration(milliseconds: 180) : Duration.zero,
                   transform: Matrix4.translationValues(_drag, 0, 0)
                     ..rotateZ(_drag * 0.0008),
                   width: MediaQuery.of(context).size.width * 0.86,
@@ -381,7 +455,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
           // Action buttons: dislike (left) and like (right)
           Transform.translate(
-            offset: const Offset(0, -40),
+            offset: const Offset(0, -30),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -393,18 +467,53 @@ class _SwipeScreenState extends State<SwipeScreen> {
                     height: 72,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.red.shade400, width: 3),
                       color: Colors.white,
                       boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 6),
+                        BoxShadow(
+                          color: Colors.redAccent.withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
                     child: const Center(
-                      child: Icon(Icons.close, size: 36, color: Colors.red),
+                      child: Icon(Icons.close_rounded, size: 36, color: Colors.redAccent),
                     ),
                   ),
                 ),
-                const SizedBox(width: 126),
+                const SizedBox(width: 48),
+                
+                // Matches Button (Center)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      '/results',
+                      arguments: {'groupId': widget.groupId},
+                    );
+                  },
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                          Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                        ]
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.emoji_events_rounded,
+                        size: 28,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 48),
                 // Like
                 GestureDetector(
                   onTap: _sending ? null : () => _sendSwipe(true),
@@ -413,16 +522,21 @@ class _SwipeScreenState extends State<SwipeScreen> {
                     height: 72,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border:
-                          Border.all(color: Colors.green.shade400, width: 3),
-                      color: Colors.white,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 6),
+                        BoxShadow(
+                          color: const Color(0xFF00B4D8).withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
                     child: const Center(
-                      child: Icon(Icons.favorite_border,
-                          size: 36, color: Colors.green),
+                      child: Icon(Icons.favorite_rounded, size: 36, color: Colors.white),
                     ),
                   ),
                 ),
@@ -474,10 +588,20 @@ class _SwipeScreenState extends State<SwipeScreen> {
                     child: Stack(
                       children: [
                         Positioned.fill(
-                          child: Image.network(
-                            _api.getProxyImageUrl(image),
+                          child: CachedNetworkImage(
+                            imageUrl: _api.getProxyImageUrl(image),
                             width: double.infinity,
                             fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              width: double.infinity,
+                              color: Colors.grey[200],
+                              child: const Center(child: CircularProgressIndicator()),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: double.infinity,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                            ),
                           ),
                         ),
 
@@ -772,26 +896,72 @@ class _SwipeScreenState extends State<SwipeScreen> {
   }
 
   bool _isFavorited(Map place) {
-    return _api.favorites.contains(_getPlaceId(place));
+    return _api.favorites.containsKey(_getPlaceId(place));
   }
 
-  void _toggleFavorite(Map place) {
-    final placeId = _getPlaceId(place);
-    setState(() {
-      if (_api.favorites.contains(placeId)) {
-        _api.favorites.remove(placeId);
-      } else {
-        _api.favorites.add(placeId);
-      }
-    });
+  void _toggleFavorite(Map place) async {
+    await _api.toggleFavorite(place);
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    // Persist the current swipe index so returning users resume where they left off
-    try {
-      _SwipeCache.setIndex(widget.groupId, _index);
-    } catch (_) {}
+    _pollingTimer?.cancel();
+
     super.dispose();
+  }
+
+  List<Widget> _buildAppBarActions() {
+    return [
+      Padding(
+        padding: const EdgeInsets.only(right: 16.0),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).pushNamed(
+                  '/results',
+                  arguments: {'groupId': widget.groupId},
+                );
+              },
+              icon: const Icon(Icons.emoji_events),
+              label: const Text('See matches'),
+            ),
+            if (_matchCount > 0)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondary, // Tropical orange
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      _matchCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ];
   }
 }

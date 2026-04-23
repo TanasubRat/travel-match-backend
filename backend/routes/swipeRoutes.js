@@ -31,7 +31,20 @@ router.post('/', requireAuth, async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    res.status(201).json(swipe);
+    let isMatch = false;
+    if (liked) {
+      const activeMembers = group.members.filter(m => m.isActive !== false).length || 1;
+      const likesCount = await Swipe.countDocuments({ group: group._id, place: place._id, liked: true });
+      if (likesCount >= activeMembers) {
+        isMatch = true;
+      }
+    }
+
+    res.status(201).json({ 
+      swipe,
+      isMatch,
+      place
+    });
   } catch (err) {
     console.error('Swipe save error', err);
     res.status(500).json({ error: 'Server error' });

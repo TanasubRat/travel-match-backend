@@ -44,20 +44,15 @@ router.get('/image', async (req, res) => {
         if (!response.ok) {
             console.error(`[Proxy] Failed: ${response.status} ${response.statusText}`);
 
-            // 1. Try serving local placeholder.png
+            // When the Google Places API limit/quota is reached (e.g. 403 Forbidden or 429 Too Many Requests),
+            // redirecting to the API again won't work. Instead, we serve a fallback placeholder image.
+            console.log(`[Proxy] Upstream error. Serving placeholder.png fallback.`);
             const placeholderPath = path.join(__dirname, '../placeholder.png');
             if (fs.existsSync(placeholderPath)) {
-                console.log('[Proxy] Serving placeholder.png due to upstream error');
                 return res.sendFile(placeholderPath);
+            } else {
+                return res.status(404).send('Not found');
             }
-
-            // 2. Fallback: Serve 1x1 Gray PNG placeholder (base64)
-            const placeholderBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-            const imgBuffer = Buffer.from(placeholderBase64, 'base64');
-
-            console.log('[Proxy] Serving placeholder PNG (fallback) due to upstream error');
-            res.setHeader('Content-Type', 'image/png');
-            return res.send(imgBuffer);
         }
 
         // Forward Content-Type

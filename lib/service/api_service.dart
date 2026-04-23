@@ -27,7 +27,7 @@ class ApiService {
 
   static const _tokenKey = 'auth_token';
   String? _token; // in-memory cache
-  final Set<String> favorites = {}; // Shared favorites across app
+  final Map<String, dynamic> favorites = {}; // Persistent favorites (Place ID -> Place JSON)
 
   ApiService({
     required this.baseUrl,
@@ -41,6 +41,23 @@ class ApiService {
   // ---- AUTH TOKEN ----
   Future<void> init() async {
     _token = await _secureStorage.read(key: _tokenKey);
+    final favStr = await _secureStorage.read(key: 'saved_favorites');
+    if (favStr != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(favStr);
+        favorites.addAll(decoded);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> toggleFavorite(Map place) async {
+    final placeId = (place['_id'] ?? place['id'] ?? place['placeId']).toString();
+    if (favorites.containsKey(placeId)) {
+       favorites.remove(placeId);
+    } else {
+       favorites[placeId] = place;
+    }
+    await _secureStorage.write(key: 'saved_favorites', value: jsonEncode(favorites));
   }
 
   Future<void> setToken(String token) async {
@@ -281,16 +298,17 @@ class ApiService {
   }
 
   // Swipes
-  Future<void> saveSwipe({
+  Future<Map<String, dynamic>> saveSwipe({
     required String groupId,
     required String placeId,
     required bool liked,
   }) async {
-    await rawPost('/api/swipes', body: {
+    final resp = await rawPost('/api/swipes', body: {
       'groupId': groupId,
       'placeId': placeId,
       'liked': liked,
     });
+    return (resp is Map) ? Map<String, dynamic>.from(resp) : {};
   }
 
   // --- Group detail ---
@@ -389,12 +407,23 @@ class ApiService {
 
   // Helper for CORS proxy images on Web
   String getProxyImageUrl(String originalUrl) {
-    // Always use proxy to avoid Referer/CORS issues with Google Maps images
     if (originalUrl.isEmpty) return '';
-    final encoded = Uri.encodeComponent(originalUrl);
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
+
+    // If it's already a relative path hosted on our backend
+    if (originalUrl.startsWith('/images/')) {
+      return '$base$originalUrl';
+    }
+
+    // Pass-through Cloudinary images directly
+    if (originalUrl.contains('cloudinary.com')) {
+      return originalUrl;
+    }
+
+    // Always use proxy to avoid Referer/CORS issues with Google Maps images
+    final encoded = Uri.encodeComponent(originalUrl);
     return '$base/api/proxy/image?url=$encoded';
   }
 }

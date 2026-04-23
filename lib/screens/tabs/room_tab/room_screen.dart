@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../service/api_service.dart';
 import '../../../widgets/app_tab_scaffold.dart';
 
@@ -265,6 +266,104 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  void _showQRCode() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(32),
+            topRight: Radius.circular(32),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Invite Friends',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Scan to join the room instantly!',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: QrImageView(
+                data: _joinCode,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
+                foregroundColor: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Code: ',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+                Text(
+                  _joinCode,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _copyCode();
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('Copy Code Link'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ---------- UI ----------
 
   @override
@@ -284,7 +383,6 @@ class _RoomScreenState extends State<RoomScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Show empty state when no group (either error or null group)
     if (_error != null || _group == null) {
       return Center(
         child: Padding(
@@ -292,34 +390,49 @@ class _RoomScreenState extends State<RoomScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.meeting_room_outlined,
-                size: 56,
-                color: Colors.black,
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.flight_takeoff_rounded,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text(
-                'Create a room',
+                'Ready for an Adventure?',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               const Text(
-                'Create a room and start swiping together with friends',
+                'Create a room to start swiping and planning \nthe perfect trip with your friends.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
+                  height: 1.5,
                   color: Colors.grey,
                 ),
               ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed('/home'),
-                icon: const Icon(Icons.group_add_outlined),
-                label: const Text('Create / Join Room'),
+              const SizedBox(height: 32),
+              SizedBox(
+                height: 56,
+                width: 250,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/home'),
+                  icon: const Icon(Icons.group_add_rounded),
+                  label: const Text(
+                    'Create / Join Room',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ],
           ),
@@ -332,97 +445,140 @@ class _RoomScreenState extends State<RoomScreen> {
     final city = (_group!['city'] ?? '') as String;
     final members = _memberNames;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                  color: Colors.black.withOpacity(0.06),
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Hero Header Image
+          Stack(
+            children: [
+              Container(
+                height: 240,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  image: const DecorationImage(
+                    // Default beautiful travel placeholder image to satisfy "pictures of place" vibe
+                    image: NetworkImage(
+                        'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop'),
+                    fit: BoxFit.cover,
+                  ),
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // top row: city/name + code + menu
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+              ),
+              // Gradient Overlay for text readability
+              Container(
+                height: 240,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.1),
+                      Colors.black.withOpacity(0.7),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 24,
+                left: 24,
+                right: 24,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            city.isNotEmpty ? city : 'Trip Room',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondary, // Tropical orange
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          if (name.isNotEmpty)
-                            Text(
-                              name,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Code:',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _joinCode,
+                          child: Text(
+                            city.isNotEmpty ? city.toUpperCase() : 'TRIP ROOM',
                             style: const TextStyle(
-                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                               fontSize: 12,
+                              letterSpacing: 1,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    PopupMenuButton<String>(
-                      onSelected: (value) async {
-                        switch (value) {
-                          case 'copy':
-                            await _copyCode();
-                            break;
-                          case 'share':
-                            await _shareCode();
-                            break;
-                          case 'delete':
-                            await _deleteGroup();
-                            break;
-                          case 'leave':
-                            await _leaveGroup();
-                            break;
-                        }
-                      },
-                      itemBuilder: (context) {
-                        return <PopupMenuEntry<String>>[
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Main Content Card
+          Transform.translate(
+            offset: const Offset(0, -20),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Action Menu & QR
+                  Row(
+                    children: [
+                      const Icon(Icons.people_alt_outlined, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${members.length} Explorers',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: _showQRCode,
+                        icon: const Icon(Icons.qr_code_2_rounded),
+                        color: theme.colorScheme.primary,
+                        tooltip: 'Show QR Code',
+                      ),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (value) async {
+                          switch (value) {
+                            case 'copy':
+                              await _copyCode();
+                              break;
+                            case 'share':
+                              await _shareCode();
+                              break;
+                            case 'delete':
+                              await _deleteGroup();
+                              break;
+                            case 'leave':
+                              await _leaveGroup();
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
                           const PopupMenuItem(
                             value: 'copy',
                             child: Text('Copy code'),
@@ -435,152 +591,169 @@ class _RoomScreenState extends State<RoomScreen> {
                           if (_isHost)
                             const PopupMenuItem(
                               value: 'delete',
-                              child: Text(
-                                'Delete room',
-                                style: TextStyle(color: Colors.red),
-                              ),
+                              child: Text('Delete room',
+                                  style: TextStyle(color: Colors.red)),
                             )
                           else
                             const PopupMenuItem(
                               value: 'leave',
-                              child: Text(
-                                'Leave room',
-                                style: TextStyle(color: Colors.red),
-                              ),
+                              child: Text('Leave room',
+                                  style: TextStyle(color: Colors.red)),
                             ),
-                        ];
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // host
-                Row(
-                  children: [
-                    const Icon(Icons.person_outline, size: 18),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Host :',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(999),
+                        ],
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  
+                  // Room Code Big Display
+                  GestureDetector(
+                    onTap: _showQRCode,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
                         children: [
-                          Text(
-                            _hostName,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          if (_isHost) ...[
-                            const SizedBox(width: 4),
-                            const Text(
-                              '(me)',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.blueAccent,
-                              ),
+                          const Text(
+                            'JOIN CODE',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2,
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _joinCode,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 4,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                  ),
 
-                // members
-                const Text(
-                  'Member :',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: members.isEmpty
-                      ? [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Waiting for members...',
+                  const SizedBox(height: 24),
+
+                  // Host
+                  const Text(
+                    'Host',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: theme.colorScheme.secondary.withOpacity(0.2),
+                      child: Icon(Icons.star, color: theme.colorScheme.secondary, size: 20),
+                    ),
+                    title: Text(
+                      _hostName,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: _isHost ? const Text('You') : null,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Members List
+                  const Text(
+                    'Members',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 10,
+                    children: members.isEmpty
+                        ? [
+                            const Text(
+                              'Waiting for friends to join...',
                               style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ),
-                        ]
-                      : members
-                          .map(
-                            (m) => Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.grey.shade400,
+                                  color: Colors.grey, fontStyle: FontStyle.italic),
+                            )
+                          ]
+                        : members.map((m) {
+                            return Chip(
+                              backgroundColor: Colors.white,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              avatar: CircleAvatar(
+                                backgroundColor: Colors.grey.shade200,
+                                child: Text(
+                                  m[0].toUpperCase(),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.black54),
                                 ),
                               ),
-                              child: Text(
-                                m,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                ),
-                const SizedBox(height: 16),
+                              label: Text(m),
+                            );
+                          }).toList(),
+                  ),
 
-                // buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed:
-                            _busy ? null : (_isHost ? _startGame : _goToSwipe),
-                        icon: Icon(
-                          _isHost
-                              ? Icons.play_arrow_rounded
-                              : Icons.swipe_rounded,
-                          size: 20,
-                        ),
-                        label: Text(_isHost ? 'Start Game' : 'Go to Swipe'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _seeMatches,
-                        icon: const Icon(
-                          Icons.emoji_events_outlined,
-                          size: 18,
-                        ),
-                        label: const Text('See matches'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.primary,
+                  const SizedBox(height: 32),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: SizedBox(
+                          height: 56,
+                          child: FilledButton.icon(
+                            onPressed:
+                                _busy ? null : (_isHost ? _startGame : _goToSwipe),
+                            icon: Icon(
+                              _isHost
+                                  ? Icons.local_fire_department_rounded
+                                  : Icons.swipe_rounded,
+                            ),
+                            label: Text(
+                              _isHost ? 'Start Swiping' : 'Go to Swipe',
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: SizedBox(
+                          height: 56,
+                          child: OutlinedButton.icon(
+                            onPressed: _busy ? null : _seeMatches,
+                            icon: const Icon(Icons.emoji_events_outlined, size: 20),
+                            label: const Text('Matches\nResults', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, height: 1.1)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

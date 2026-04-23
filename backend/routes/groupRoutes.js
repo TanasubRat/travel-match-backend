@@ -23,8 +23,12 @@ router.get('/:id/places', requireAuth, async (req, res) => {
     const priceLevelNum = (typeof f.priceLevel === 'number') ? f.priceLevel : null; // This is the "Budget" max
     const openNowFlag = f.openNow === true;
 
+    // Exclude places already swiped by this user in this group
+    const swiped = await Swipe.find({ group: group._id, user: req.user.id }).select('place');
+    const swipedIds = swiped.map(s => s.place);
+
     // Base Match Stage
-    const matchStage = { isActive: true };
+    const matchStage = { isActive: true, _id: { $nin: swipedIds } };
     if (group.city) matchStage.city = { $regex: new RegExp(group.city, 'i') };
     if (openNowFlag) matchStage.isOpenNow = true;
     if (minRatingNum > 0) matchStage.rating = { $gte: minRatingNum };
@@ -51,17 +55,23 @@ router.get('/:id/places', requireAuth, async (req, res) => {
     ];
 
     // Distance Calculation (if lat/lng provided)
-    // Using rough Euclidean approximation for speed in aggregation without $geoNear requirement (which needs index)
-    // Degree to km conversion: ~111km per degree.
     if (!isNaN(userLat) && !isNaN(userLng)) {
+      // 1 degree latitude = ~111.32 km
+      const LAT_DEG_TO_KM = 111.32;
+      // Pre-calculate the cosine of the user's latitude to correct the Earth's curvature error
+      const cosLat = Math.cos(userLat * (Math.PI / 180));
+      // Industry standard multiplier to convert straight-line (Haversine) to average driving distance
+      const ROUTING_FACTOR = 1.35; 
+
       pipeline.push({
         $addFields: {
-          // Distance in degrees approx
-          distDeg: {
+          straightLineKm: {
             $sqrt: {
               $add: [
-                { $pow: [{ $subtract: ['$latitude', userLat] }, 2] },
-                { $pow: [{ $subtract: ['$longitude', userLng] }, 2] }
+                // dy^2
+                { $pow: [ { $multiply: [ { $subtract: ['$latitude', userLat] }, LAT_DEG_TO_KM ] }, 2 ] },
+                // dx^2
+                { $pow: [ { $multiply: [ { $subtract: ['$longitude', userLng] }, LAT_DEG_TO_KM * cosLat ] }, 2 ] }
               ]
             }
           }
@@ -69,7 +79,7 @@ router.get('/:id/places', requireAuth, async (req, res) => {
       });
       pipeline.push({
         $addFields: {
-          distKm: { $multiply: ['$distDeg', 111] }
+          distKm: { $multiply: ['$straightLineKm', ROUTING_FACTOR] }
         }
       });
     } else {
