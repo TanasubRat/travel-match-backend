@@ -35,7 +35,7 @@ class _TripCreationScreenState extends State<CityTripCreationScreen> {
     super.initState();
     // Normalize city name to match DropdownMenuItem values
     if (widget.city == 'Salaya-Mahidol' || widget.city == 'Mahidol/Salaya') {
-      _city = 'Salaya';
+      _city = 'Salaya, Nakhon Pathom';
     } else {
       _city = widget.city;
     }
@@ -129,7 +129,7 @@ class _TripCreationScreenState extends State<CityTripCreationScreen> {
                   value: _city,
                   items: const [
                     DropdownMenuItem(
-                      value: 'Salaya',
+                      value: 'Salaya, Nakhon Pathom',
                       child: Text('Salaya'),
                     ),
                     DropdownMenuItem(

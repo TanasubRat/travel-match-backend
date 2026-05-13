@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../service/api_service.dart';
 import '../../../widgets/app_tab_scaffold.dart';
 
@@ -217,7 +218,9 @@ class _RoomScreenState extends State<RoomScreen> {
       Navigator.of(context).pushNamed(
         '/start_swipe',
         arguments: {'groupId': _groupId},
-      );
+      ).then((_) {
+        if (mounted) _loadRoom();
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -232,7 +235,9 @@ class _RoomScreenState extends State<RoomScreen> {
     Navigator.of(context).pushNamed(
       '/start_swipe',
       arguments: {'groupId': _groupId},
-    );
+    ).then((_) {
+      if (mounted) _loadRoom();
+    });
   }
 
   void _seeMatches() {
@@ -240,7 +245,9 @@ class _RoomScreenState extends State<RoomScreen> {
     Navigator.of(context).pushNamed(
       '/results',
       arguments: {'groupId': _groupId},
-    );
+    ).then((_) {
+      if (mounted) _loadRoom();
+    });
   }
 
   Future<bool?> _confirm({
@@ -444,6 +451,14 @@ class _RoomScreenState extends State<RoomScreen> {
     final name = (_group!['name'] ?? '') as String;
     final city = (_group!['city'] ?? '') as String;
     final members = _memberNames;
+    final status = _group!['status'] as String?;
+    final isCompleted = status == 'COMPLETED';
+    final Object? finalPlaceRaw = _group!['finalPlace'];
+    final finalPlace = finalPlaceRaw is Map ? finalPlaceRaw : null;
+
+    final heroImageUrl = (isCompleted && finalPlace != null && finalPlace['image'] != null)
+        ? _api.getProxyImageUrl(finalPlace['image'].toString())
+        : 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop';
 
     return SingleChildScrollView(
       child: Column(
@@ -456,10 +471,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary,
-                  image: const DecorationImage(
-                    // Default beautiful travel placeholder image to satisfy "pictures of place" vibe
-                    image: NetworkImage(
-                        'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop'),
+                  image: DecorationImage(
+                    image: NetworkImage(heroImageUrl),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -713,43 +726,157 @@ class _RoomScreenState extends State<RoomScreen> {
                   const SizedBox(height: 32),
 
                   // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: SizedBox(
-                          height: 56,
-                          child: FilledButton.icon(
-                            onPressed:
-                                _busy ? null : (_isHost ? _startGame : _goToSwipe),
-                            icon: Icon(
-                              _isHost
-                                  ? Icons.local_fire_department_rounded
-                                  : Icons.swipe_rounded,
-                            ),
-                            label: Text(
-                              _isHost ? 'Start Swiping' : 'Go to Swipe',
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                  if (isCompleted)
+                    _buildFinalDestinationCard(theme, finalPlace ?? {}, _group!['finalPlace'])
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: SizedBox(
+                            height: 56,
+                            child: FilledButton.icon(
+                              onPressed:
+                                  _busy ? null : (_isHost ? _startGame : _goToSwipe),
+                              icon: Icon(
+                                _isHost
+                                    ? Icons.local_fire_department_rounded
+                                    : Icons.swipe_rounded,
+                              ),
+                              label: Text(
+                                _isHost ? 'Start Swiping' : 'Go to Swipe',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: SizedBox(
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: _busy ? null : _seeMatches,
-                            icon: const Icon(Icons.emoji_events_outlined, size: 20),
-                            label: const Text('Matches\nResults', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, height: 1.1)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: SizedBox(
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              onPressed: _busy ? null : _seeMatches,
+                              icon: const Icon(Icons.emoji_events_outlined, size: 20),
+                              label: const Text('Matches\nResults', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, height: 1.1)),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinalDestinationCard(ThemeData theme, Map finalPlace, dynamic rawParam) {
+    final placeName = finalPlace['name'] ?? 'Final Destination';
+    final address = finalPlace['address'] ?? '';
+    String mapsUrl = finalPlace['mapsUrl']?.toString() ?? '';
+    
+    // If database doesn't have a direct mapsUrl, generate one!
+    if (mapsUrl.isEmpty) {
+      final lat = finalPlace['latitude'];
+      final lng = finalPlace['longitude'];
+      if (lat != null && lng != null) {
+        // Universal Google Maps Link using coordinates
+        mapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+      } else if (placeName.isNotEmpty) {
+        // Fallback to searching by name
+        mapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(placeName)}';
+      }
+    }
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.secondary.withOpacity(0.1),
+            theme.colorScheme.primary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.secondary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondary,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.secondary.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Text(
+              '🎉 Final Destination Confirmed!',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            placeName,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.primary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (address.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              address,
+              style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: () async {
+                 if (mapsUrl.isNotEmpty) {
+                   final uri = Uri.parse(mapsUrl);
+                   if (await canLaunchUrl(uri)) {
+                     await launchUrl(uri);
+                   } else {
+                     if (mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text('Could not open maps')),
+                       );
+                     }
+                   }
+                 } else {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text('No maps link available')),
+                   );
+                 }
+              },
+              icon: const Icon(Icons.map_rounded),
+              label: const Text('Open in Maps', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ),

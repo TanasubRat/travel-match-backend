@@ -209,7 +209,8 @@ router.get('/:id', requireAuth, async (req, res) => {
   try {
     const group = await Group.findById(req.params.id)
       .populate('host', 'displayName email')
-      .populate('members.user', 'displayName email');
+      .populate('members.user', 'displayName email')
+      .populate('finalPlace');
     if (!group) return res.status(404).json({ error: 'Group not found' });
     res.json(group);
   } catch (err) {
@@ -223,7 +224,8 @@ router.get('/code/:joinCode', requireAuth, async (req, res) => {
   try {
     const group = await Group.findOne({ joinCode: req.params.joinCode })
       .populate('host', 'displayName email')
-      .populate('members.user', 'displayName email');
+      .populate('members.user', 'displayName email')
+      .populate('finalPlace');
     if (!group) return res.status(404).json({ error: 'Group not found' });
     res.json(group);
   } catch (err) {

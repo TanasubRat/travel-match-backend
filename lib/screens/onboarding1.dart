@@ -5,8 +5,9 @@ class Onboarding1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -22,12 +23,12 @@ class Onboarding1 extends StatelessWidget {
                   height: 140,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(32),
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFF5AA9FF),
-                        Color(0xFF007AFF),
+                        theme.colorScheme.primary.withOpacity(0.7),
+                        theme.colorScheme.primary,
                       ],
                     ),
                   ),
@@ -40,21 +41,18 @@ class Onboarding1 extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 40),
-                const Text(
+                Text(
                   'Welcome to',
-                  style: TextStyle(
-                    fontSize: 24,
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w400,
-                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Swipetrip',
-                  style: TextStyle(
-                    fontSize: 40,
+                  style: theme.textTheme.displaySmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: Colors.black,
+                    color: theme.colorScheme.primary,
                     height: 1.1,
                   ),
                   textAlign: TextAlign.center,
@@ -70,14 +68,13 @@ class Onboarding1 extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    height: 56,
+                    child: FilledButton(
                       onPressed: () {
                         Navigator.pushReplacementNamed(context, '/onboarding2');
                       },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                      style: FilledButton.styleFrom(
                         shape: const StadiumBorder(),
-                        backgroundColor: const Color(0xFF007AFF),
                         elevation: 0,
                       ),
                       child: const Text(
@@ -85,7 +82,6 @@ class Onboarding1 extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -96,26 +92,24 @@ class Onboarding1 extends StatelessWidget {
                     children: [
                       TextButton(
                         onPressed: () {
-                          // Navigator.pushNamed(context, '/privacy');
+                          Navigator.pushNamed(context, '/privacy');
                         },
                         child: Text(
                           'Privacy Policy',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
                       const SizedBox(width: 24),
                       TextButton(
                         onPressed: () {
-                          // Navigator.pushNamed(context, '/terms');
+                          Navigator.pushNamed(context, '/terms');
                         },
                         child: Text(
                           'Terms & Conditions',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),

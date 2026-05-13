@@ -80,17 +80,32 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Future<void> _confirm(String placeId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
     try {
       await _api.confirmFinalPlace(groupId: _groupId, placeId: placeId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Final destination confirmed')),
-      );
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(); // close loader
+      Navigator.of(context).pop(true); // close screen
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed: $e')));
+      Navigator.of(context).pop(); // close loader
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Error Confirming'),
+          content: Text(e.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

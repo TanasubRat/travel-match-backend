@@ -47,8 +47,25 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: ${e.toString()}')),
+      String errorMsg = 'An unknown error occurred.';
+      if (e is ApiException) {
+        errorMsg = e.message; // e.g. "Invalid credentials"
+      } else {
+        errorMsg = e.toString();
+      }
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Login Failed'),
+          content: Text(errorMsg),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);

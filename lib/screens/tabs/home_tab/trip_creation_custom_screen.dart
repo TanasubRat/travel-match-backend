@@ -59,7 +59,7 @@ class _CustomTripCreationScreenState extends State<CustomTripCreationScreen> {
     try {
       // Normalize some alternate names to the canonical city used in DB
       final queryCity = (city == 'Mahidol/Salaya' || city == 'Salaya-Mahidol')
-          ? 'Salaya'
+          ? 'Salaya, Nakhon Pathom'
           : city;
 
       // Use helper from ApiService if available

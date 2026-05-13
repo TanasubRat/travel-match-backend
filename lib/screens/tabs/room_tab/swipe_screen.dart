@@ -920,11 +920,14 @@ class _SwipeScreenState extends State<SwipeScreen> {
           alignment: Alignment.center,
           children: [
             FilledButton.icon(
-              onPressed: () {
-                Navigator.of(context).pushNamed(
+              onPressed: () async {
+                final confirmed = await Navigator.of(context).pushNamed(
                   '/results',
                   arguments: {'groupId': widget.groupId},
                 );
+                if (confirmed == true && mounted) {
+                  Navigator.of(context).pop(true);
+                }
               },
               icon: const Icon(Icons.emoji_events),
               label: const Text('See matches'),

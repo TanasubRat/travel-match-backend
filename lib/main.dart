@@ -29,16 +29,14 @@ import 'screens/onboarding2.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/invite_friend_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/privacy_screen.dart';
+import 'screens/terms_screen.dart';
 
 String _defaultBaseUrl() {
-  // Production URL (Render)
-  return 'https://travel-match-backend.onrender.com';
-
-  // Local Development (Keep for reference)
-  // const port = 3000;
-  // if (kIsWeb) return 'http://localhost:$port';
-  // if (Platform.isAndroid) return 'http://10.0.2.2:$port';
-  // return 'http://localhost:$port';
+  // We need to use localhost for testing because the backend changes
+  // haven't been pushed to the live Render server yet!
+  return 'http://localhost:3000';
 }
 
 final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
@@ -138,6 +136,9 @@ class Swipetrip extends StatelessWidget {
         '/friends': (_) => const FriendsScreen(),
         '/favorite': (_) => const FavoritesScreen(),
         '/setting': (_) => SettingsTab(api: api),
+        '/profile': (_) => const ProfileScreen(),
+        '/privacy': (_) => const PrivacyScreen(),
+        '/terms': (_) => const TermsScreen(),
 
         // auth & onboarding
         '/onboarding1': (_) => const Onboarding1(),

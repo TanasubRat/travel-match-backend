@@ -103,8 +103,13 @@ class ApiService {
   Future<dynamic> rawGet(String path,
       {Map<String, dynamic>? query, Map<String, String>? headers}) async {
     await getToken(); // ensure _token loaded
+    
+    // Add cache buster to prevent Chrome/Web aggressive caching
+    final Map<String, dynamic> finalQuery = Map<String, dynamic>.from(query ?? {});
+    finalQuery['_t'] = DateTime.now().millisecondsSinceEpoch.toString();
+
     final res = await _client
-        .get(_uri(path, query), headers: _headers(extra: headers))
+        .get(_uri(path, finalQuery), headers: _headers(extra: headers))
         .timeout(timeout);
     return _handleResponse(res);
   }
