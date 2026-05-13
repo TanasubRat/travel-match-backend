@@ -34,9 +34,8 @@ import 'screens/privacy_screen.dart';
 import 'screens/terms_screen.dart';
 
 String _defaultBaseUrl() {
-  // We need to use localhost for testing because the backend changes
-  // haven't been pushed to the live Render server yet!
-  return 'http://localhost:3000';
+  // Production URL (Render)
+  return 'https://travel-match-backend.onrender.com';
 }
 
 final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
